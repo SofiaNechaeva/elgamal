@@ -9,8 +9,18 @@ from application.services import Sender, Receiver
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Эль-Гамаль: отправитель А → получатель Б')
-        self.geometry('1320x840')
+        self.title('Эль-Гамаль: отправитель А')
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = min(760, max(1, (screen_width - 40) // 2))
+        window_height = min(840, max(1, screen_height - 80))
+        self.geometry(f'{window_width}x{window_height}+0+0')
+        self.receiver_window = tk.Toplevel(self)
+        self.receiver_window.title('Эль-Гамаль: получатель Б')
+        self.receiver_window.geometry(
+            f'{window_width}x{window_height}+{window_width + 20}+0'
+        )
+        self.receiver_window.protocol('WM_DELETE_WINDOW', self.destroy)
         self.transport = LocalTransport()
         self.sender, self.receiver = Sender(self.transport), Receiver(self.transport)
         self.public = self.private = None
@@ -40,19 +50,20 @@ class App(tk.Tk):
         ttk.Button(keys, text='Загрузить сохранённые', command=self.load).pack(side='left')
         ttk.Button(keys, text='Заново', command=self.reset_workflow).pack(side='right')
         self.key_info = tk.StringVar(value='Ключи ещё не созданы')
-        ttk.Label(outer, textvariable=self.key_info, wraplength=1250).pack(fill='x', pady=5)
+        ttk.Label(outer, textvariable=self.key_info, wraplength=700).pack(fill='x', pady=5)
         self.key_log = self._text(outer, height=7)
-        mid = ttk.Panedwindow(outer, orient='horizontal')
-        mid.pack(fill='both', expand=True, pady=8)
-        left = ttk.LabelFrame(mid, text='2. ОТПРАВИТЕЛЬ А', padding=8)
-        right = ttk.LabelFrame(mid, text='3. ПОЛУЧАТЕЛЬ Б', padding=8)
-        mid.add(left, weight=1); mid.add(right, weight=1)
+        left = ttk.LabelFrame(outer, text='2. ОТПРАВИТЕЛЬ А', padding=8)
+        left.pack(fill='both', expand=True, pady=8)
+        right = ttk.LabelFrame(self.receiver_window, text='3. ПОЛУЧАТЕЛЬ Б', padding=8)
+        right.pack(fill='both', expand=True, padx=10, pady=10)
         ttk.Label(left, text='Сообщение для подписи:').pack(anchor='w')
         self.message = self._text(left, height=5)
         self.message.insert('1.0', 'Привет, Б! Это сообщение подписано Эль-Гамалем.')
         bar = ttk.Frame(left); bar.pack(fill='x', pady=5)
         ttk.Button(bar, text='1. Подписать', command=self.sign_message).pack(side='left')
         ttk.Button(bar, text='2. Отправить →', command=self.send_signed).pack(side='left', padx=5)
+        self.sender_status = tk.StringVar(value='Ожидание подписи')
+        ttk.Label(left, textvariable=self.sender_status, style='Title.TLabel').pack(anchor='w', pady=3)
         ttk.Label(left, text='Формулы и подстановки отправителя:').pack(anchor='w')
         self.sender_log = self._text(left, height=20)
         self.sender_log.tag_configure('sent', foreground='#087830', font=('DejaVu Sans Mono', 10, 'bold'))
@@ -111,6 +122,7 @@ class App(tk.Tk):
             self._log(self.sender_log, '')
             self._log(self.receiver_log, '')
             self.status.set('Ключи обновлены. Ожидание сообщения')
+            self.sender_status.set('Ключи обновлены. Ожидание подписи')
             self.last_signature = self.last_message = None
             self.last_hash = None
             self.pending_message = self.pending_signature = None
@@ -141,6 +153,7 @@ class App(tk.Tk):
         self.transport = LocalTransport()
         self.sender, self.receiver = Sender(self.transport), Receiver(self.transport)
         self.status.set('Обмен очищен. Текущие ключи сохранены.')
+        self.sender_status.set('Обмен очищен. Текущие ключи сохранены.')
 
     def sign_message(self):
         if self.private is None:
@@ -151,7 +164,7 @@ class App(tk.Tk):
             sig, log = self.sender.sign_message(msg, self.private)
             self.pending_message, self.pending_signature = msg, sig
             self._log(self.sender_log, log)
-            self.status.set(f'Подпись создана: ({sig.a}, {sig.b}). Нажмите «Отправить».')
+            self.sender_status.set(f'Подпись создана: ({sig.a}, {sig.b}). Нажмите «Отправить».')
         except Exception as e:
             messagebox.showerror('Ошибка подписи', str(e))
 
@@ -168,7 +181,7 @@ class App(tk.Tk):
                         f'(a, b) = ({self.pending_signature.a}, {self.pending_signature.b})\n')
             self.sender_log.insert('end', sent_log, 'sent')
             self.sender_log.see('end')
-            self.status.set(f'Отправлено: подпись ({self.pending_signature.a}, {self.pending_signature.b})')
+            self.sender_status.set(f'Отправлено: подпись ({self.pending_signature.a}, {self.pending_signature.b})')
         except Exception as e:
             messagebox.showerror('Ошибка отправки', str(e))
 
